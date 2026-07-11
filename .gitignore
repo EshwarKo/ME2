@@ -1,0 +1,17 @@
+# Lua / LuaRocks
+*.o
+*.so
+*.rock
+.luarocks/
+lua_modules/
+luacov.stats.out
+luacov.report.out
+
+# busted / test artifacts
+*.tap
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
