@@ -1,0 +1,10 @@
+-- Copy this to /etc/me2.cfg on the OpenComputers machine and edit as needed.
+-- It is a serialized Lua table read by tools/update.lua.
+-- Only needed if you want non-defaults, or a token while the repo is private.
+{
+  owner  = "EshwarKo",
+  repo   = "ME2",
+  branch = "main",
+  root   = "/home/me2",   -- where source is installed on the OC filesystem
+  -- token = "ghp_xxx",   -- uncomment only while the repo is PRIVATE
+}

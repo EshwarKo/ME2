@@ -19,12 +19,26 @@ do the transforming (feed inputs, poll outputs).
 Knowing → taking → making one → making trees → keeping in stock → interface → distribution.
 Each layer ships working on its own.
 
-## Development
+## Development loop
 
-Pure logic (the planner especially) is written to run and be tested **outside the game** with
-`busted`, using injected/mocked adapters. Lint with `luacheck`.
+Three tiers, fastest first — most work should happen without launching Minecraft.
 
-```sh
-luacheck .
-busted
-```
+1. **Pure logic (no game).** The planner and all decision logic run and are tested on your
+   machine with `busted`, using injected/mocked adapters. Lint with `luacheck`.
+   ```sh
+   luacheck .
+   busted
+   ```
+2. **In-game integration — live pull from GitHub.** Put an **Internet Card** in the OC
+   computer, then bootstrap the updater once:
+   ```
+   wget -f https://raw.githubusercontent.com/EshwarKo/ME2/main/tools/update.lua /home/update.lua
+   ```
+   After every `git push`, run `update.lua` in the OC shell — it auto-discovers every `.lua`
+   file in the repo (via the GitHub tree API) and mirrors it into `/home/me2`. No manifest to
+   maintain. See `tools/update.lua` and `tools/me2.cfg.example`.
+   - The one-line bootstrap above needs the repo to be **public**. While it's private, either
+     flip it public (`gh repo edit EshwarKo/ME2 --visibility public --accept-visibility-change-consequences`)
+     or drop a `token=` into `/etc/me2.cfg` and hand-place `update.lua` first.
+   - `raw.githubusercontent.com` has a short CDN cache, so a fresh push can take a moment to
+     appear — a few seconds, not a real blocker.
