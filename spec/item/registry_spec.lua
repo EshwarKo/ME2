@@ -1,0 +1,45 @@
+local registryLib = require("me2.item.registry")
+
+local function desc(name, damage)
+  return { name = name, damage = damage }
+end
+
+describe("registry", function()
+  it("stores and retrieves by key", function()
+    local r = registryLib.new()
+    assert.is_true(r:put("h1", desc("iron", 0)))
+    assert.is_true(r:has("h1"))
+    assert.are.equal("iron", r:get("h1").name)
+    assert.are.equal(1, r:count())
+  end)
+
+  it("is idempotent for an identical descriptor", function()
+    local r = registryLib.new()
+    r:put("h1", desc("iron", 0))
+    assert.is_false(r:put("h1", desc("iron", 0)))
+    assert.are.equal(1, r:count())
+  end)
+
+  it("fails loud on an identity conflict", function()
+    local r = registryLib.new()
+    r:put("h1", desc("iron", 0))
+    assert.has_error(function() r:put("h1", desc("gold", 0)) end)
+  end)
+
+  it("round-trips through snapshot/restore", function()
+    local r = registryLib.new()
+    r:put("h1", desc("iron", 0))
+    r:put("h2", desc("gold", 1))
+    local r2 = registryLib.restore(r:snapshot())
+    assert.are.equal(2, r2:count())
+    assert.are.equal("gold", r2:get("h2").name)
+  end)
+
+  it("removes keys", function()
+    local r = registryLib.new()
+    r:put("h1", desc("iron", 0))
+    assert.is_true(r:remove("h1"))
+    assert.is_false(r:has("h1"))
+    assert.are.equal(0, r:count())
+  end)
+end)
