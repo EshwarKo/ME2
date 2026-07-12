@@ -162,8 +162,14 @@ for batch = 1, batches do
     collected = collected + r.moved
   end
 
-  local outKey = plan.output.key
-  local gotExpected = outKey and outIndex:count(outKey) > 0
+  -- Did the recipe's output actually appear? Resolve against the registry as it stands AFTER
+  -- polling -- a first-ever product is only learned once craft_output is scanned -- then check
+  -- a matching identity really landed in craft_output (not a storage-resolved guess made before
+  -- the craft, which mis-warns on the first run and on multi-variant oreDict outputs).
+  local gotExpected = false
+  for _, k in ipairs(resolveLib.candidates(registry, recipe.output)) do
+    if outIndex:count(k) > 0 then gotExpected = true break end
+  end
   print(string.format("[%d/%d] collected %d item(s)%s",
     batch, batches, collected, gotExpected and "" or "  (WARNING: expected output not seen)"))
 end
