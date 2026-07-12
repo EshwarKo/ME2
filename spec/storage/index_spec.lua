@@ -1,0 +1,66 @@
+local indexLib = require("me2.storage.index")
+
+local function slotsOf(locs)
+  local s = {}
+  for _, l in ipairs(locs) do s[#s + 1] = l.slot end
+  return s
+end
+
+describe("storage.index", function()
+  it("records a slot and reports count + location", function()
+    local i = indexLib.new()
+    i:setSlot(1, "A", 5)
+    assert.are.equal(5, i:count("A"))
+    local locs = i:locations("A")
+    assert.are.equal(1, #locs)
+    assert.are.equal(1, locs[1].slot)
+    assert.are.equal(5, locs[1].count)
+  end)
+
+  it("sums the same key across slots, locations sorted by slot", function()
+    local i = indexLib.new()
+    i:setSlot(4, "A", 3)
+    i:setSlot(1, "A", 5)
+    assert.are.equal(8, i:count("A"))
+    assert.are.same({ 1, 4 }, slotsOf(i:locations("A")))
+  end)
+
+  it("clearSlot removes just that slot's contribution", function()
+    local i = indexLib.new()
+    i:setSlot(1, "A", 5)
+    i:setSlot(2, "A", 3)
+    i:clearSlot(1)
+    assert.are.equal(3, i:count("A"))
+    assert.are.equal(1, #i:locations("A"))
+  end)
+
+  it("overwriting a slot with a new key moves the count", function()
+    local i = indexLib.new()
+    i:setSlot(1, "A", 5)
+    i:setSlot(1, "B", 2)
+    assert.are.equal(0, i:count("A"))
+    assert.are.equal(2, i:count("B"))
+    assert.are.equal(1, i:distinctCount())
+  end)
+
+  it("count of an absent key is 0 and locations empty", function()
+    local i = indexLib.new()
+    assert.are.equal(0, i:count("X"))
+    assert.are.same({}, i:locations("X"))
+  end)
+
+  it("fails loud on a non-positive count", function()
+    local i = indexLib.new()
+    assert.has_error(function() i:setSlot(1, "A", 0) end)
+  end)
+
+  it("keys() is sorted; distinctCount/totalItems aggregate", function()
+    local i = indexLib.new()
+    i:setSlot(1, "B", 2)
+    i:setSlot(2, "A", 5)
+    i:setSlot(3, "A", 1)
+    assert.are.same({ "A", "B" }, i:keys())
+    assert.are.equal(2, i:distinctCount())
+    assert.are.equal(8, i:totalItems())
+  end)
+end)
