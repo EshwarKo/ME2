@@ -9,15 +9,19 @@ One recipe at a time. No dependency tree, no "make the ingredients too" — that
 ## The idea
 
 A recipe is plain, hand-authored data (`recipes.cfg`): `{ output, inputs }`, where each item is a
-human-readable **label/name query**, not a hash. Queries bind to identity **late** — resolved at
-make-time against the registry (charter §5) — so a recipe reads clearly and works in any world
-once storage has seen the items.
+human-readable **query** — an oreDict class (`ore = "plateIron"`) or a label/name
+(`item = "Iron Plate"`), never a hash. Queries bind to identity **late** — resolved at make-time
+against the registry (charter §5) — so a recipe reads clearly and works in any world once storage
+has seen the items. Prefer `ore`: GregTech drifts an item's display *label*, but its oreDict class
+is stable, so oredict-first resolution is what makes matching survive GregTech's naming.
 
 Making one batch is:
 
 1. **Scan** storage → fresh index (the cache is re-earned every batch).
-2. **Plan** (pure): resolve each input query to a key, check storage has enough. Any unknown or
-   under-stocked input is a shortage → fail loud, listing exactly what's missing.
+2. **Plan** (pure): resolve each input query to its *candidate* keys (oreDict class first, then
+   label/name), then pick the candidate we hold the most of. Any query that resolves to nothing,
+   or is under-stocked, is a shortage → fail loud, listing exactly what's missing. Resolution
+   never guesses blindly and never merges distinct items.
 3. **Feed**: move each input from `storage` → `craft_input` via the Phase 2 mover. A short move
    means the world drifted mid-feed → stop rather than craft a partial batch.
 4. **Poll** `craft_output` until it is non-empty **and stable** across two polls (settled), or
@@ -44,6 +48,8 @@ about being one; a status-aware detector is a later refinement.
 ## Module map (added this phase)
 
 ```
+src/me2/item/keyof.lua      pure   of(stack): the canonical identity key (see below)
+src/me2/item/resolve.lua    pure   candidates(registry, entry): keys matching an ore/label query
 src/me2/craft/recipes.lua   pure   find(list, query): recipes whose output matches a query
 src/me2/craft/makeone.lua   pure   plan(recipe, index, resolve): inputs/output/shortages/ok
 bin/make.lua                game   runnable: find recipe, feed inputs, poll, collect, report
@@ -53,11 +59,37 @@ config/recipes.example.cfg          the hand-authored recipe list
 `makeone.plan`'s only world contact is injected:
 
 ```
-resolve(query) -> key | nil     identity for a query, nil if unknown (raises on ambiguity)
-index:count(key) -> n           how much storage holds
+resolve(entry) -> { key, ... }   candidate identity keys for a recipe entry (may be empty)
+index:count(key) -> n            how much storage holds
 ```
 
-so the resolution, shortage accounting, and output defaulting are all proven offline.
+so the resolution, candidate-picking, shortage accounting, and output defaulting are all proven
+offline.
+
+## Identity — why the key is built by us, not by `computeHash`
+
+Two stacks are the same item only if truly identical *including NBT* (charter §3), and quantity
+is **not** part of identity. The database's `computeHash` fails this: it hashes the serialized
+ItemStack, which includes the stack's `Count` byte — so the same item at 1 vs 64 hashes to
+different keys, minting phantom duplicate identities (the original "ambiguous Iron Plate" bug).
+
+So `me2.item.keyof` builds the key itself from only the identity-bearing fields:
+`name` + `damage` + (raw NBT `tag` when present). This is quantity-independent and NBT-inclusive.
+`me2.adapter.db_hasher` now only *reads* the stack (via a Database Upgrade scratch slot); the key
+is derived in pure Lua, so it's fully offline-testable.
+
+Two OC settings must be enabled for full identity (both default OFF; set in
+`.minecraft/config/opencomputers/settings.conf`, then restart):
+
+```
+debug.insertIdsInConverters = true                -- exposes oreNames (oreDict classes)
+integration.vanilla.allowItemStackNBTTags = true  -- exposes NBT bytes for exact identity
+```
+
+If an item carries NBT but its bytes aren't exposed, `keyof` fails loud rather than silently
+merge distinct items. After upgrading, delete the old cache — `rm /home/me2/registry.db` — since
+old `computeHash`-based keys are incompatible with the new scheme (the registry is a rebuildable
+cache; the next `scan` re-earns it).
 
 ## Reach
 
@@ -76,8 +108,10 @@ make "iron plate"        # make 1
 make "iron plate" 8      # make 8 batches
 ```
 
-`query` matches a recipe by an output label/name substring; ambiguous matches list the
-candidates and abort. Input queries resolve against the registry the same way.
+`query` matches a recipe by output oreDict class (exact) or label/name (exact, else substring);
+ambiguous *recipe* matches list the candidates and abort. Input queries resolve against the
+registry the same way, and when one resolves to several real items, make picks the one you hold
+the most of.
 
 ## Next
 

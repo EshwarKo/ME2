@@ -1,7 +1,8 @@
 local recipes = require("me2.craft.recipes")
 
 local list = {
-  { output = { item = "Iron Plate", count = 1 }, inputs = { { item = "Iron Ingot", count = 1 } } },
+  { output = { item = "Iron Plate", ore = "plateIron", count = 1 },
+    inputs = { { item = "Iron Ingot", count = 1 } } },
   { output = { item = "Iron Rod", count = 1 }, inputs = { { item = "Iron Ingot", count = 1 } } },
   { output = { item = "Gold Plate", count = 1 }, inputs = { { item = "Gold Ingot", count = 1 } } },
 }
@@ -26,5 +27,11 @@ describe("recipes.find", function()
     local f = recipes.find(list, "Gold Plate")
     assert.are.equal(1, #f)
     assert.are.equal("Gold Plate", f[1].output.item)
+  end)
+
+  it("matches an output oreDict class", function()
+    local f = recipes.find(list, "plateIron")
+    assert.are.equal(1, #f)
+    assert.are.equal("Iron Plate", f[1].output.item)
   end)
 end)

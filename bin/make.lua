@@ -25,6 +25,7 @@ local scan = require("me2.storage.scan")
 local give = require("me2.storage.give")
 local recipesLib = require("me2.craft.recipes")
 local makeone = require("me2.craft.makeone")
+local resolveLib = require("me2.item.resolve")
 
 local ROLES_PATH   = "/home/me2/roles.cfg"
 local REG_PATH     = "/home/me2/registry.db"
@@ -53,24 +54,11 @@ local function saveRegistry(reg)
   f:close()
 end
 
--- Resolve a query to a single identity key known to the registry. Exact key wins; otherwise a
--- case-insensitive label/name substring, raising on ambiguity, nil if unknown.
+-- Resolve a recipe entry to candidate identity keys in the registry (oreDict class, else
+-- label/name). Ambiguity is not an error here: makeone picks among candidates by stock.
 local function makeResolver(registry)
-  return function(query)
-    if registry:has(query) then return query end
-    local q = query:lower()
-    local matches = {}
-    for _, key in ipairs(registry:keys()) do
-      local desc = registry:get(key)
-      local label = desc and (desc.label or desc.name) or key
-      local name = desc and desc.name or ""
-      if label:lower():find(q, 1, true) or name:lower():find(q, 1, true) then
-        matches[#matches + 1] = key
-      end
-    end
-    if #matches == 1 then return matches[1] end
-    if #matches > 1 then error("ambiguous input query '" .. query .. "'") end
-    return nil
+  return function(entry)
+    return resolveLib.candidates(registry, entry)
   end
 end
 

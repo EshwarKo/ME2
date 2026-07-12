@@ -1,9 +1,11 @@
 local indexLib = require("me2.storage.index")
 local makeone = require("me2.craft.makeone")
 
--- resolve: map query -> key, or nil if absent
+-- resolve: map an entry to a list of candidate keys (keyed by ore or item)
 local function resolver(map)
-  return function(q) return map[q] end
+  return function(entry)
+    return map[entry.ore or entry.item] or {}
+  end
 end
 
 local recipe = {
@@ -12,7 +14,7 @@ local recipe = {
 }
 
 describe("makeone.plan", function()
-  local resolve = resolver({ ["Iron Ingot"] = "IRON", ["Iron Plate"] = "PLATE" })
+  local resolve = resolver({ ["Iron Ingot"] = { "IRON" }, ["Iron Plate"] = { "PLATE" } })
 
   it("plans a craft when inputs are stocked", function()
     local i = indexLib.new()
@@ -32,12 +34,24 @@ describe("makeone.plan", function()
     assert.are.same({ { item = "Iron Ingot", have = 1, need = 2 } }, p.shortages)
   end)
 
-  it("reports a shortage when an input query is unknown", function()
+  it("reports a shortage when an input resolves to nothing", function()
     local i = indexLib.new()
-    local p = makeone.plan(recipe, i, resolver({ ["Iron Plate"] = "PLATE" }))
+    local p = makeone.plan(recipe, i, resolver({ ["Iron Plate"] = { "PLATE" } }))
     assert.is_false(p.ok)
     assert.are.equal(1, #p.shortages)
     assert.are.equal(0, p.shortages[1].have)
+  end)
+
+  it("picks the candidate we hold the most of", function()
+    local i = indexLib.new()
+    i:setSlot(1, "IRON_A", 1)
+    i:setSlot(2, "IRON_B", 9)
+    local r = resolver({ ["plateIron"] = { "IRON_A", "IRON_B" }, ["Iron Plate"] = { "PLATE" } })
+    local rec = { output = { item = "Iron Plate" }, inputs = { { ore = "plateIron", count = 3 } } }
+    local p = makeone.plan(rec, i, r)
+    assert.is_true(p.ok)
+    assert.are.equal("IRON_B", p.inputs[1].key)
+    assert.are.equal("plateIron", p.inputs[1].item)
   end)
 
   it("defaults output count to 1 when omitted", function()
